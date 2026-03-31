@@ -3,41 +3,30 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\StateResource;
 use App\Models\State;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class StateController extends Controller
 {
-    /**
-     * Display a listing of states (with optional country filter)
-     */
     public function index(Request $request): JsonResponse
     {
-        $query = State::query();
-
-        if ($request->has('country_id')) {
-            $query->where('country_id', $request->country_id);
-        }
-
-        $states = $query->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $states
-        ]);
-    }
-
-    /**
-     * Display a specific state with country info
-     */
-    public function show(State $state): JsonResponse
-    {
-        $state->load('country');
+        $states = State::query()
+            ->when($request->country_id, fn($q) => $q->where('country_id', $request->country_id))
+            ->when($request->search, fn($q, $search) => 
+                $q->where('name', 'LIKE', "%{$search}%")
+            )
+            ->paginate(100);
 
         return response()->json([
             'success' => true,
-            'data' => $state
+            'data'    => StateResource::collection($states),
+            'meta'    => [
+                'current_page' => $states->currentPage(),
+                'last_page'    => $states->lastPage(),
+                'total'        => $states->total(),
+            ]
         ]);
     }
 }
