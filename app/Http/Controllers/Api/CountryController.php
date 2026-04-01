@@ -15,19 +15,28 @@ class CountryController extends Controller
     {
         $query = Country::query();
 
-        // Search
+        // Search Logic
         if ($search = $request->query('search')) {
             $query->where('name', 'LIKE', "%{$search}%")
                   ->orWhere('code', 'LIKE', "%{$search}%")
-                  ->orWhere('iso3', 'LIKE', "%{$search}%");
+                  ->orWhere('iso3', 'LIKE', "%{$search}%")
+                  ->orWhere('id', 'LIKE', "$search");
         }
 
-        // Sorting
-        $sortBy = $request->query('sort_by', 'name');
-        $sortDir = $request->query('sort_dir', 'asc');
-        $query->orderBy($sortBy, $sortDir);
+        // Exact Name Search (New)
+        if ($exact = $request->query('name')) {
+            $query->where('name', $exact);
+        }
 
-        $countries = $query->paginate(50);   // 50 per page
+        // Search by ID (New)
+        if ($id = $request->query('id')) {
+            $query->where('id', $id);
+        }
+
+        // Always sort by ID for consistent pagination
+        $query->orderBy('id');
+
+        $countries = $query->paginate(50);
 
         return response()->json([
             'success' => true,
@@ -37,13 +46,28 @@ class CountryController extends Controller
                 'last_page'    => $countries->lastPage(),
                 'per_page'     => $countries->perPage(),
                 'total'        => $countries->total(),
+                'from'         => $countries->firstItem(),
+                'to'           => $countries->lastItem(),
             ]
         ]);
     }
 
-    public function show(Country $country): JsonResponse
+    public function show(Country $country, Request $request): JsonResponse
     {
-        $country->load('states');
+        $includes = explode(',', $request->query('include', ''));
+
+        $load = [];
+
+        if (in_array('states', $includes)) {
+            $load[] = 'states';
+        }
+        if (in_array('cities', $includes)) {
+            $load[] = 'cities';
+        }
+
+        if (!empty($load)) {
+            $country->load($load);
+        }
 
         return response()->json([
             'success' => true,
@@ -53,11 +77,13 @@ class CountryController extends Controller
 
     public function states(Country $country, Request $request): JsonResponse
     {
-        $states = $country->states()
-                          ->when($request->search, fn($q, $search) => 
-                              $q->where('name', 'LIKE', "%{$search}%")
-                          )
-                          ->paginate(100);
+        $query = $country->states()->orderBy('id');
+
+        if ($search = $request->query('search')) {
+            $query->where('name', 'LIKE', "%{$search}%");
+        }
+
+        $states = $query->paginate(100);
 
         return response()->json([
             'success' => true,
