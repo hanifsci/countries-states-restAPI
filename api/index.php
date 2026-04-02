@@ -1,15 +1,17 @@
 <?php
 
-// ================================================
-// Vercel Serverless Entry Point for Laravel
-// ================================================
+use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 
-require_once __DIR__ . '/../vendor/autoload.php';
+define('LARAVEL_START', microtime(true));
 
-$app = require_once __DIR__ . '/../bootstrap/app.php';
+if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php')) {
+	require $maintenance;
+}
 
-$request = Illuminate\Http\Request::capture();
+require __DIR__.'/../vendor/autoload.php';
 
-$response = $app->handleRequest($request);
+/** @var Application $app */
+$app = require_once __DIR__.'/../bootstrap/app.php';
 
-$response->send();
+$app->handleRequest(Request::capture());
