@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CountryController;
 use App\Http\Controllers\Api\StateController;
 use App\Http\Controllers\Api\CityController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Cache;
 
 // Protected API Routes (Auth + Rate Limit 100/min)
 Route::prefix('v1')
@@ -63,7 +64,7 @@ Route::post('/create-master-user', function (Illuminate\Http\Request $request) {
 });
 
 // Cache Clear Route (Protected)
-// Route::post('/clear-cache', function () {
-//     Cache::flush();
-//     return response()->json(['message' => 'All cache cleared successfully']);
-// });
+Route::post('/clear-cache', function () {
+    Cache::flush();
+    return response()->json(['message' => 'All cache cleared successfully']);
+});
