@@ -12,18 +12,16 @@ class CityController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = City::query()->orderBy('id');
+        $query = City::query()->orderBy('name');   // Better default sorting by name
 
-        // Filter by state
+        // Filter by state_id
         if ($stateId = $request->query('state_id')) {
             $query->where('state_id', $stateId);
         }
 
-        // Filter by country (via state)
+        // Filter by country_id (through state)
         if ($countryId = $request->query('country_id')) {
-            $query->whereHas('state', function ($q) use ($countryId) {
-                $q->where('country_id', $countryId);
-            });
+            $query->whereHas('state', fn($q) => $q->where('country_id', $countryId));
         }
 
         // Search by city name
@@ -31,7 +29,21 @@ class CityController extends Controller
             $query->where('name', 'LIKE', "%{$search}%");
         }
 
-        $cities = $query->paginate(500);   // Safe pagination for large table
+        // If state_id is provided → return ALL cities (no pagination) for that state
+        if ($request->has('state_id') && !$request->has('search') && !$request->has('page')) {
+            $cities = $query->get();   // Get all (safe because one state won't have 100k cities)
+            
+            return response()->json([
+                'success' => true,
+                'data'    => CityResource::collection($cities),
+                'meta'    => [
+                    'total' => $cities->count(),
+                    'type'  => 'all']
+            ]);
+        }
+
+        // Normal paginated response for large queries
+        $cities = $query->paginate(100);
 
         return response()->json([
             'success' => true,

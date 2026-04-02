@@ -12,8 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Return JSON 401 for unauthenticated API requests (no redirect to login)
+        $middleware->redirectGuestsTo(fn () => abort(401, 'Unauthorized'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->create();
