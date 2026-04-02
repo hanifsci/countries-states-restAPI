@@ -14,7 +14,7 @@
       "dest": "/api/index.php"
     }
   ],
-  "installCommand": "composer install --no-dev --optimize-autoloader --no-interaction",
+  "installCommand": "composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs",
   "buildCommand": "php artisan optimize",
   "outputDirectory": "."
 }
