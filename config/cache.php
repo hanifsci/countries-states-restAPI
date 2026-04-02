@@ -115,6 +115,12 @@ return [
 
     'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-cache-'),
 
+    'api_response_ttl' => env('API_RESPONSE_CACHE_TTL', 300),
+
+    'api_client_cache_ttl' => env('API_CLIENT_CACHE_TTL', 60),
+
+    'api_stale_while_revalidate' => env('API_STALE_WHILE_REVALIDATE', 30),
+
     /*
     |--------------------------------------------------------------------------
     | Serializable Classes

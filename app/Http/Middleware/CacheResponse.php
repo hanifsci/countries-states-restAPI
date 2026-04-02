@@ -11,21 +11,27 @@ class CacheResponse
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->isMethod('get')) {
-            $key = 'response_' . md5($request->fullUrl());
-
-            if (Cache::has($key)) {
-                return Cache::get($key);
-            }
-
-            $response = $next($request);
-
-            // Cache for 24 hours (since data is static)
-            Cache::put($key, $response, now()->addDay());
-
-            return $response;
+        if (! $request->isMethod('get') || $request->user() !== null || $request->bearerToken() !== null) {
+            return $next($request);
         }
 
-        return $next($request);
+        $key = 'response:' . sha1($request->fullUrl());
+        $ttl = now()->addSeconds(max((int) config('cache.api_client_cache_ttl', 60), 1));
+
+        if ($cached = Cache::get($key)) {
+            return response($cached['content'], $cached['status'], $cached['headers']);
+        }
+
+        $response = $next($request);
+
+        if ($response->isSuccessful()) {
+            Cache::put($key, [
+                'content' => $response->getContent(),
+                'status' => $response->getStatusCode(),
+                'headers' => $response->headers->allPreserveCaseWithoutCookies(),
+            ], $ttl);
+        }
+
+        return $response;
     }
 }

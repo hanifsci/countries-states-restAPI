@@ -4,19 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CountryResource;
+use App\Http\Resources\StateResource;
 use App\Models\Country;
+use App\Support\ApiResponseCache;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use App\Http\Resources\StateResource;
-use Illuminate\Support\Facades\Cache;
 
 class CountryController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $cacheKey = 'countries_all_v2_' . md5(json_encode($request->query()));
-
-        $payload = Cache::rememberForever($cacheKey, function () use ($request) {
+        $payload = ApiResponseCache::remember('countries.index.v4', $request, function () use ($request) {
             $query = Country::query();
 
             // Search Logic
@@ -40,7 +38,22 @@ class CountryController extends Controller
             // Always sort by ID for consistent pagination
             $query->orderBy('id');
 
-            $countries = $query->paginate(50);
+            $shouldPaginate = $request->has('page') || $request->has('per_page');
+
+            if (! $shouldPaginate) {
+                $countries = $query->get();
+
+                return [
+                    'success' => true,
+                    'data'    => CountryResource::collection($countries)->resolve($request),
+                    'meta'    => [
+                        'total' => $countries->count(),
+                        'type' => 'all',
+                    ],
+                ];
+            }
+
+            $countries = $query->paginate((int) $request->integer('per_page', 50));
 
             return [
                 'success' => true,
@@ -56,14 +69,12 @@ class CountryController extends Controller
             ];
         });
 
-        return response()->json($payload);
+        return ApiResponseCache::toResponse($request, $payload);
     }
 
     public function show(Country $country, Request $request): JsonResponse
     {
-        $cacheKey = 'country_v2_' . $country->id . '_' . md5($request->query('include', ''));
-
-        $payload = Cache::rememberForever($cacheKey, function () use ($country, $request) {
+        $payload = ApiResponseCache::remember('countries.show.v3', $request, function () use ($country, $request) {
             $includes = array_filter(explode(',', $request->query('include', '')));
 
             $load = [];
@@ -85,27 +96,31 @@ class CountryController extends Controller
             ];
         });
 
-        return response()->json($payload);
+        return ApiResponseCache::toResponse($request, $payload);
     }
 
     public function states(Country $country, Request $request): JsonResponse
     {
-        $query = $country->states()->orderBy('id');
+        $payload = ApiResponseCache::remember('countries.states.v3', $request, function () use ($country, $request) {
+            $query = $country->states()->orderBy('id');
 
-        if ($search = $request->query('search')) {
-            $query->where('name', 'LIKE', "%{$search}%");
-        }
+            if ($search = $request->query('search')) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
 
-        $states = $query->paginate(100);
+            $states = $query->paginate(100);
 
-        return response()->json([
-            'success' => true,
-            'data'    => StateResource::collection($states),
-            'meta'    => [
-                'current_page' => $states->currentPage(),
-                'last_page'    => $states->lastPage(),
-                'total'        => $states->total(),
-            ]
-        ]);
+            return [
+                'success' => true,
+                'data'    => StateResource::collection($states->getCollection())->resolve($request),
+                'meta'    => [
+                    'current_page' => $states->currentPage(),
+                    'last_page'    => $states->lastPage(),
+                    'total'        => $states->total(),
+                ],
+            ];
+        });
+
+        return ApiResponseCache::toResponse($request, $payload);
     }
 }

@@ -5,18 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CityResource;
 use App\Models\City;
+use App\Support\ApiResponseCache;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 
 class CityController extends Controller
 {
 
     public function index(Request $request): JsonResponse
     {
-        $cacheKey = 'cities_v2_' . md5(json_encode($request->query()));
-
-        $payload = Cache::rememberForever($cacheKey, function () use ($request) {
+        $payload = ApiResponseCache::remember('cities.index.v3', $request, function () use ($request) {
             $query = City::query()->orderBy('name');
 
             // Filter by state_id
@@ -36,7 +34,7 @@ class CityController extends Controller
 
             // If state_id is provided → return ALL cities (no pagination) for that state
             if ($request->has('state_id') && !$request->has('search') && !$request->has('page')) {
-                $cities = $query->get();    // Get all (safe because one state won't have 100k cities)
+                $cities = $query->limit(5000)->get();    // Get all (safe because one state won't have 100k cities)
 
                 return [
                     'success' => true,
@@ -60,22 +58,20 @@ class CityController extends Controller
             ];
         });
 
-        return response()->json($payload);
+        return ApiResponseCache::toResponse($request, $payload);
     }
 
-    public function show(City $city): JsonResponse
+    public function show(City $city, Request $request): JsonResponse
     {
-        $cacheKey = 'city_v2_' . $city->id;
-
-        $payload = Cache::rememberForever($cacheKey, function () use ($city) {
+        $payload = ApiResponseCache::remember('cities.show.v3', $request, function () use ($city, $request) {
             $city->load('state');
 
             return [
                 'success' => true,
-                'data'    => (new CityResource($city))->resolve(request()),
+                'data'    => (new CityResource($city))->resolve($request),
             ];
         });
 
-        return response()->json($payload);
+        return ApiResponseCache::toResponse($request, $payload);
     }
 }

@@ -5,11 +5,10 @@ use App\Http\Controllers\Api\CountryController;
 use App\Http\Controllers\Api\StateController;
 use App\Http\Controllers\Api\CityController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Cache;
 
 // Protected API Routes (Auth + Rate Limit 100/min)
 Route::prefix('v1')
-    ->middleware(['auth:sanctum', 'throttle:api', 'cache.response'])
+    ->middleware(['auth:sanctum', 'throttle:api'])
     ->group(function () {
 
         Route::get('/countries', [CountryController::class, 'index']);

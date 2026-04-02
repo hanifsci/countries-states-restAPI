@@ -5,18 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\StateResource;
 use App\Models\State;
+use App\Support\ApiResponseCache;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 
 
 class StateController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $cacheKey = 'states_v2_' . md5(json_encode($request->query()));
-
-        $payload = Cache::rememberForever($cacheKey, function () use ($request) {
+        $payload = ApiResponseCache::remember('states.index.v3', $request, function () use ($request) {
             $query = State::query()->orderBy('name');
 
             if ($countryId = $request->query('country_id')) {
@@ -41,14 +39,12 @@ class StateController extends Controller
             ];
         });
 
-        return response()->json($payload);
+        return ApiResponseCache::toResponse($request, $payload);
     }
 
     public function show(State $state, Request $request): JsonResponse
     {
-        $cacheKey = 'state_v2_' . $state->id . '_' . md5($request->query('include', ''));
-
-        $payload = Cache::rememberForever($cacheKey, function () use ($state, $request) {
+        $payload = ApiResponseCache::remember('states.show.v3', $request, function () use ($state, $request) {
             $includes = array_filter(explode(',', $request->query('include', '')));
 
             $load = [];
@@ -70,6 +66,6 @@ class StateController extends Controller
             ];
         });
 
-        return response()->json($payload);
+        return ApiResponseCache::toResponse($request, $payload);
     }
 }

@@ -36,12 +36,12 @@ test('state show caches payload arrays instead of response objects', function ()
         ]),
     ]));
 
-    Cache::shouldReceive('rememberForever')
+    Cache::shouldReceive('remember')
         ->once()
-        ->andReturnUsing(function (string $key, callable $callback) {
+        ->andReturnUsing(function (string $key, $ttl, callable $callback) {
             $payload = $callback();
 
-            expect($key)->toStartWith('state_v2_4006_');
+            expect($key)->toStartWith('api:states.show.v3:');
             expect($payload)->toBeArray();
             expect($payload['success'])->toBeTrue();
             expect($payload['data'])->toBeArray();
@@ -56,6 +56,11 @@ test('state show caches payload arrays instead of response objects', function ()
     );
 
     expect($response)->toBeInstanceOf(JsonResponse::class);
+    expect($response->headers->get('Cache-Control'))->toContain('max-age=60');
+    expect($response->headers->get('Cache-Control'))->toContain('private');
+    expect($response->headers->get('Cache-Control'))->toContain('stale-while-revalidate=30');
+    expect($response->headers->get('Vary'))->toBe('Accept, Authorization');
+    expect($response->headers->get('ETag'))->not->toBeNull();
     expect($response->getData(true))->toMatchArray([
         'success' => true,
         'data' => [
