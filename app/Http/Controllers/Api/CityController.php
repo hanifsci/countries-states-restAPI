@@ -7,63 +7,75 @@ use App\Http\Resources\CityResource;
 use App\Models\City;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 class CityController extends Controller
 {
+
     public function index(Request $request): JsonResponse
     {
-        $query = City::query()->orderBy('name');   // Better default sorting by name
+        $cacheKey = 'cities_v2_' . md5(json_encode($request->query()));
 
-        // Filter by state_id
-        if ($stateId = $request->query('state_id')) {
-            $query->where('state_id', $stateId);
-        }
+        $payload = Cache::rememberForever($cacheKey, function () use ($request) {
+            $query = City::query()->orderBy('name');
 
-        // Filter by country_id (through state)
-        if ($countryId = $request->query('country_id')) {
-            $query->whereHas('state', fn($q) => $q->where('country_id', $countryId));
-        }
+            // Filter by state_id
+            if ($stateId = $request->query('state_id')) {
+                $query->where('state_id', $stateId);
+            }
 
-        // Search by city name
-        if ($search = $request->query('search')) {
-            $query->where('name', 'LIKE', "%{$search}%");
-        }
+            // Filter by country_id (through state)
+            if ($countryId = $request->query('country_id')) {
+                $query->whereHas('state', fn($q) => $q->where('country_id', $countryId));
+            }
 
-        // If state_id is provided → return ALL cities (no pagination) for that state
-        if ($request->has('state_id') && !$request->has('search') && !$request->has('page')) {
-            $cities = $query->get();   // Get all (safe because one state won't have 100k cities)
-            
-            return response()->json([
+            // Search by city name
+            if ($search = $request->query('search')) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
+            // If state_id is provided → return ALL cities (no pagination) for that state
+            if ($request->has('state_id') && !$request->has('search') && !$request->has('page')) {
+                $cities = $query->get();    // Get all (safe because one state won't have 100k cities)
+
+                return [
+                    'success' => true,
+                    'data'    => CityResource::collection($cities)->resolve($request),
+                    'meta'    => ['total' => $cities->count(), 'type' => 'all']
+                ];
+            }
+
+            // Paginated for large queries
+            $cities = $query->paginate(100);
+
+            return [
                 'success' => true,
-                'data'    => CityResource::collection($cities),
+                'data'    => CityResource::collection($cities->getCollection())->resolve($request),
                 'meta'    => [
-                    'total' => $cities->count(),
-                    'type'  => 'all']
-            ]);
-        }
+                    'current_page' => $cities->currentPage(),
+                    'last_page'    => $cities->lastPage(),
+                    'per_page'     => $cities->perPage(),
+                    'total'        => $cities->total(),
+                ]
+            ];
+        });
 
-        // Normal paginated response for large queries
-        $cities = $query->paginate(100);
-
-        return response()->json([
-            'success' => true,
-            'data'    => CityResource::collection($cities),
-            'meta'    => [
-                'current_page' => $cities->currentPage(),
-                'last_page'    => $cities->lastPage(),
-                'per_page'     => $cities->perPage(),
-                'total'        => $cities->total(),
-            ]
-        ]);
+        return response()->json($payload);
     }
 
     public function show(City $city): JsonResponse
     {
-        $city->load('state');
+        $cacheKey = 'city_v2_' . $city->id;
 
-        return response()->json([
-            'success' => true,
-            'data'    => new CityResource($city)
-        ]);
+        $payload = Cache::rememberForever($cacheKey, function () use ($city) {
+            $city->load('state');
+
+            return [
+                'success' => true,
+                'data'    => (new CityResource($city))->resolve(request()),
+            ];
+        });
+
+        return response()->json($payload);
     }
 }

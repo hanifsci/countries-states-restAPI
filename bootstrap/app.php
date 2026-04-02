@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Return JSON 401 for unauthenticated API requests (no redirect to login)
         $middleware->redirectGuestsTo(fn () => abort(401, 'Unauthorized'));
+        $middleware->alias([
+        'cache.response' => \App\Http\Middleware\CacheResponse::class,
+    ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

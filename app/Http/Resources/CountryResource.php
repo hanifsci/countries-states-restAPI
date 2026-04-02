@@ -22,16 +22,16 @@ class CountryResource extends JsonResource
             'states_count'  => $this->whenLoaded('states', fn() => $this->states->count()),
             'cities_count'  => $this->whenLoaded('cities', fn() => $this->cities->count()),
 
-            // States : include all states wehen requested
+            // States: include all states when requested.
             'states' => $this->when(
                 str_contains($include, 'states'),
-                fn() => StateResource::collection($this->states)
+                fn() => StateResource::collection($this->states)->resolve($request)
             ),
 
             // Cities (limited to avoid huge payload)
             'cities' => $this->when(
                 str_contains($include, 'cities'),
-                fn() => CityResource::collection($this->cities->take(50))
+                fn() => CityResource::collection($this->cities->take(50))->resolve($request)
             ),
         ];
     }
