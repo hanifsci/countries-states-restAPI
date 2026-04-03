@@ -13,12 +13,23 @@ class ApiResponseCache
     public static function remember(string $namespace, Request $request, Closure $callback): array
     {
         $ttl = max((int) config('cache.api_response_ttl', 300), 1);
+        $key = self::key($namespace, $request);
 
-        return Cache::remember(
-            self::key($namespace, $request),
-            now()->addSeconds($ttl),
-            $callback,
-        );
+        $cached = Cache::get($key);
+
+        if (is_array($cached)) {
+            $request->attributes->set('api_response_cache_hit', true);
+
+            return $cached;
+        }
+
+        $request->attributes->set('api_response_cache_hit', false);
+
+        $payload = $callback();
+
+        Cache::put($key, $payload, now()->addSeconds($ttl));
+
+        return $payload;
     }
 
     public static function toResponse(Request $request, array $payload): JsonResponse
@@ -35,6 +46,10 @@ class ApiResponseCache
             sprintf('private, max-age=%d, stale-while-revalidate=%d', $clientTtl, $staleWhileRevalidate)
         );
         $response->headers->set('Vary', 'Accept, Authorization');
+        $response->headers->set(
+            'X-App-Cache',
+            $request->attributes->get('api_response_cache_hit', false) ? 'HIT' : 'MISS'
+        );
 
         if ($response->isNotModified($request)) {
             return $response;
